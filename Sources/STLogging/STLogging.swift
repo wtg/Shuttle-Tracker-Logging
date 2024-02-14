@@ -20,7 +20,7 @@ public macro log<CategoryType>(
 public final class LoggingSystem<CategoryType> where CategoryType: LoggingCategory {
 	
 	/// A representation of a log in the Shuttle Tracker unified logging system.
-	public struct Log: Hashable, Identifiable, Sendable {
+	public struct Log: Hashable, Identifiable, Codable, Sendable {
 		
 		public enum ClientPlatform: String, Codable, Sendable {
 			
@@ -75,13 +75,13 @@ public final class LoggingSystem<CategoryType> where CategoryType: LoggingCatego
 	
 	private let configurationProvider: any LoggingConfigurationProvider<CategoryType>
 	
-	private let uploader: any LogUploader<CategoryType>
+	private let uploader: any LogUploader<CategoryType>.Type
 	
 	/// Creates a logging system.
 	/// - Parameters:
 	///   - configurationProvider: A configuration provider that customizes the behavior of the logging system.
-	///   - uploader: An instance that can upload logs to a remote server.
-	public init(configurationProvider: some LoggingConfigurationProvider<CategoryType>, uploader: some LogUploader<CategoryType>) {
+	///   - uploader: A type that can upload logs to a remote server.
+	public init(configurationProvider: some LoggingConfigurationProvider<CategoryType>, uploader: any LogUploader<CategoryType>.Type) {
 		self.configurationProvider = configurationProvider
 		self.uploader = uploader
 	}
@@ -130,11 +130,7 @@ public final class LoggingSystem<CategoryType> where CategoryType: LoggingCatego
 		let content = try OSLogStore(scope: .currentProcessIdentifier)
 			.getEntries(matching: predicate)
 			.reduce(into: "") { (partialResult, entry) in
-				let message = if let logEntry = entry as? OSLogEntryLog, logEntry.category != CategoryType.default.rawValue {
-					"[\(logEntry.category)] \(logEntry.composedMessage)"
-				} else {
-					entry.composedMessage
-				}
+				let message = if let logEntry = entry as? OSLogEntryLog, logEntry.category != CategoryType.default.rawValue { "[\(logEntry.category)] \(logEntry.composedMessage)" } else { entry.composedMessage }
 				partialResult += "[\(formatter.string(from: entry.date))] \(message)\n"
 			}
 			.dropLast() // Drop the trailing newline character
@@ -185,6 +181,6 @@ public protocol LogUploader<CategoryType> {
 	/// - Parameter log: The log to upload.
 	/// - Returns: The server-determined ID of the uploaded log.
 	/// - Throws: When the upload task fails.
-	func upload(log: LoggingSystem<CategoryType>.Log) async throws -> UUID
+	static func upload(log: LoggingSystem<CategoryType>.Log) async throws -> UUID
 	
 }
